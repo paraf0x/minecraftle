@@ -24,3 +24,19 @@ model game_count {
 
   @@unique([user_id, attempts])
 }
+
+// Daily game of a Discord player, one row per player and puzzle (LFS fork).
+model discord_game {
+  id            Int       @id @default(autoincrement())
+  discord_id    String
+  puzzle_number Int
+  puzzle_date   String
+  guesses       Json
+  tries         Int
+  status        String
+  started_at    DateTime  @default(now())
+  finished_at   DateTime?
+  reported_at   DateTime?
+
+  @@unique([discord_id, puzzle_number])
+}

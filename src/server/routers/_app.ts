@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { publicProcedure, createRouter } from "../trpc";
+import { discordRouter } from "./discord";
 import { gameRouter } from "./game";
 
 export const appRouter = createRouter({
@@ -15,6 +16,7 @@ export const appRouter = createRouter({
       };
     }),
   game: gameRouter,
+  discord: discordRouter,
 });
 
 // export type definition of API
