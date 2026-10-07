@@ -1,0 +1,14 @@
+.git
+.github
+node_modules
+.next
+.env
+.env.*
+!.env.example
+data
+docs
+misc
+loader
+conversion_scripts
+test
+*.md

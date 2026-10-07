@@ -1,0 +1,49 @@
+# LFS fork: game server and database. Settings come from .env (see .env.example).
+services:
+  app:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+        NEXT_PUBLIC_GA_ID: ${NEXT_PUBLIC_GA_ID:-}
+    container_name: lfs-minecraftle
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://minecraftle:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/minecraftle?schema=public
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
+      DISCORD_GUILD_ID: ${DISCORD_GUILD_ID:-}
+      MEMBER_ROLE_ID: ${MEMBER_ROLE_ID:-}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      CONCIERGE_URL: ${CONCIERGE_URL:-}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-}
+    ports:
+      - "127.0.0.1:8095:3000"
+    networks:
+      - default
+      - lfs-net
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: minecraftle
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: minecraftle
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U minecraftle -d minecraftle"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - default
+      - lfs-net
+
+networks:
+  lfs-net:
+    external: true
