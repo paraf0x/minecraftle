@@ -133,3 +133,36 @@ test("config: missing or short values disable Discord features", () => {
   assert.equal(getDiscordConfig({ ...env, SESSION_SECRET: "short" }), null);
   assert.equal(getDiscordConfig({}), null);
 });
+
+test("token route logs status and Discord error field, never code or secret", async () => {
+  const lines: string[] = [];
+  const f = fakeFetch(() => json(400, { error: "invalid_grant", error_description: "Invalid code secret-code" }));
+  const r = await handleTokenRequest("secret-code", cfg, f, new Date(), (l) => lines.push(l));
+  assert.equal(r.status, 400);
+  assert.deepEqual(lines, ["[discord-token] exchange failed: status 400, error invalid_grant"]);
+  const all = lines.join("\n");
+  assert.ok(!all.includes("secret-code") && !all.includes(cfg.clientSecret) && !all.includes(cfg.sessionSecret));
+});
+
+test("token route logs a failed role check and a network error", async () => {
+  const lines: string[] = [];
+  const f = fakeFetch((url) => (url.endsWith("/oauth2/token") ? json(200, { access_token: "AT123" }) : json(401, { message: "401: Unauthorized" })));
+  assert.equal((await handleTokenRequest("c", cfg, f, new Date(), (l) => lines.push(l))).status, 502);
+  const down = fakeFetch(() => {
+    throw new Error("boom");
+  });
+  assert.equal((await handleTokenRequest("c", cfg, down, new Date(), (l) => lines.push(l))).status, 502);
+  assert.deepEqual(lines, ["[discord-token] member failed: status 401", "[discord-token] exchange failed: status none"]);
+  assert.ok(!lines.join("").includes("AT123"));
+});
+
+test("token route stays silent on success and on not_member", async () => {
+  const lines: string[] = [];
+  const ok = fakeFetch((url) =>
+    url.endsWith("/oauth2/token") ? json(200, { access_token: "at" }) : json(200, { roles: ["333"], user: { id: "42" } }),
+  );
+  assert.equal((await handleTokenRequest("c", cfg, ok, new Date(), (l) => lines.push(l))).status, 200);
+  const no = fakeFetch((url) => (url.endsWith("/oauth2/token") ? json(200, { access_token: "at" }) : json(404, {})));
+  assert.equal((await handleTokenRequest("c", cfg, no, new Date(), (l) => lines.push(l))).status, 403);
+  assert.deepEqual(lines, []);
+});
