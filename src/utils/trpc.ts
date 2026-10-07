@@ -1,5 +1,6 @@
 import { httpBatchLink } from "@trpc/client";
 import { createTRPCNext } from "@trpc/next";
+import { getSessionToken } from "@/discord/clientSession";
 import type { AppRouter } from "../server/routers/_app";
 
 function getBaseUrl() {
@@ -33,7 +34,7 @@ export const trpc = createTRPCNext<AppRouter>({
           // You can pass any HTTP headers you wish here
           async headers() {
             return {
-              // authorization: getAuthCookie(),
+              ...(getSessionToken() ? { authorization: `Bearer ${getSessionToken()}` } : {}),
             };
           },
         }),

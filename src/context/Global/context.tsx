@@ -1,6 +1,9 @@
 import { DEFAULT_OPTIONS } from "@/constants";
 import { ColorTable, GameState, ItemMap, MatchMap, Options, RecipeMap, Table, TableItem } from "@/types";
-import { Dispatch, SetStateAction, createContext, useContext } from "react";
+import type { GameStatus, Guess } from "@/discord/grid";
+import { Dispatch, MutableRefObject, SetStateAction, createContext, useContext } from "react";
+
+export type SavedGame = { status: GameStatus; guesses: Guess[] };
 
 export type GlobalContextProps = {
   userId: string;
@@ -23,6 +26,10 @@ export type GlobalContextProps = {
   resetGame: (isRandom: boolean) => void;
   gameDate: Date;
   remainingSolutionVariants: Table[];
+  // LFS: restore a stored daily game, and a slot where src/discord registers
+  // a function that resetGame(false) calls instead of starting an empty game.
+  restoreGame: (date: Date, saved: SavedGame) => void;
+  dailyRestorerRef: MutableRefObject<(() => boolean) | null>;
 };
 
 const GlobalContext = createContext<GlobalContextProps>({
@@ -50,6 +57,8 @@ const GlobalContext = createContext<GlobalContextProps>({
   resetGame: () => {},
   gameDate: new Date(),
   remainingSolutionVariants: [],
+  restoreGame: () => {},
+  dailyRestorerRef: { current: null },
 });
 
 export const GlobalContextProvider = GlobalContext.Provider;

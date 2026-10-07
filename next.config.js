@@ -27,9 +27,12 @@ const nextConfig = {
       {
         source: "/:path*",
         headers: [
+          // LFS: Discord embeds the game in an iframe, so X-Frame-Options
+          // SAMEORIGIN is replaced by a frame-ancestors list.
           {
-            key: "X-Frame-Options",
-            value: "SAMEORIGIN",
+            key: "Content-Security-Policy",
+            value:
+              "frame-ancestors 'self' https://discord.com https://*.discord.com https://*.discordsays.com",
           },
         ],
       },

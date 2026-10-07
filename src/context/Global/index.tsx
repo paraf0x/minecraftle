@@ -1,7 +1,10 @@
 import { CACHE_VERSION, DEFAULT_OPTIONS, PUBLIC_DIR } from "@/constants";
 import { ColorTable, GameState, ItemMap, MatchMap, Options, RecipeMap, Table, TableItem } from "@/types";
 import { compareTables, getVariantsWithReflections } from "@/utils/recipe";
-import { ReactNode, useEffect, useMemo, useState } from "react";
+import { pickDailySolution } from "@/discord/daily";
+import { replayRemainingVariants } from "@/discord/replay";
+import type { SavedGame } from "./context";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import seedrandom from "seedrandom";
 import { GlobalContextProps, GlobalContextProvider } from "./context";
 
@@ -40,6 +43,12 @@ const GlobalProvider = ({ children }: { children: ReactNode }) => {
     [key: string]: number;
   }>({});
 
+  // LFS: hooks for resuming a saved daily game (see src/discord).
+  const dailyRestorerRef = useRef<(() => boolean) | null>(null);
+  const dailyDateRef = useRef<Date | null>(null);
+  const restoredVariantsRef = useRef<Table[] | null>(null);
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
   useEffect(() => {
     getUserId();
     getOptions();
@@ -48,19 +57,21 @@ const GlobalProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const resetGame = (isRandom: boolean) => {
+    if (!isRandom && dailyRestorerRef.current?.()) return;
     setGameState("inprogress");
     if (isRandom) {
       const randomSolution = Object.keys(recipes)[Math.floor(Math.random() * Object.keys(recipes).length)];
       setSolution(randomSolution);
     } else {
-      const newDate = new Date();
+      const newDate = dailyDateRef.current ?? new Date();
       setGameDate(newDate);
       generateSetPuzzle(newDate);
     }
 
     setCursorItem(undefined);
     setCraftingTables([]);
-    setTimeout(
+    clearTimeout(resetTimerRef.current);
+    resetTimerRef.current = setTimeout(
       () =>
         setCraftingTables([
           [
@@ -115,19 +126,56 @@ const GlobalProvider = ({ children }: { children: ReactNode }) => {
       // include reflections
       let solutionVariants = getVariantsWithReflections(solutionRecipe);
       setAllSolutionVariants(solutionVariants);
-      setRemainingSolutionVariants(solutionVariants);
+      setRemainingSolutionVariants(restoredVariantsRef.current ?? solutionVariants);
+      restoredVariantsRef.current = null;
     }
   }, [solutionRecipe]);
 
   useEffect(() => {
-    generateSetPuzzle(gameDate);
+    generateSetPuzzle(dailyDateRef.current ?? gameDate);
   }, [recipes]);
 
+  // The daily puzzle is chosen by UTC date, so every player gets the same one.
   const generateSetPuzzle = (date: Date) => {
-    const random = seedrandom(date.toDateString());
+    setSolution(pickDailySolution(Object.keys(recipes), date));
+  };
 
-    const randomSolution = Object.keys(recipes)[Math.floor(random() * Object.keys(recipes).length)];
-    setSolution(randomSolution);
+  /** Puts a stored daily game on the board, with the hints it had when saved. */
+  const restoreGame = (date: Date, saved: SavedGame) => {
+    const key = pickDailySolution(Object.keys(recipes), date);
+    const input = recipes[key].input;
+    const empty = (): Table => [
+      [undefined, undefined, undefined],
+      [undefined, undefined, undefined],
+      [undefined, undefined, undefined],
+    ];
+    const emptyColors = (): ColorTable => [
+      [undefined, undefined, undefined],
+      [undefined, undefined, undefined],
+      [undefined, undefined, undefined],
+    ];
+    const finished = saved.status !== "inprogress";
+    const tables: Table[] = saved.guesses.map((g) => g.table as Table);
+    const colors: ColorTable[] = saved.guesses.map((g) => g.colors as ColorTable);
+    const remaining = replayRemainingVariants(
+      getVariantsWithReflections(JSON.parse(JSON.stringify(input))),
+      saved.guesses,
+    );
+
+    clearTimeout(resetTimerRef.current);
+    dailyDateRef.current = date;
+    setGameDate(date);
+    setSolution(key);
+    if (input === solutionRecipe) {
+      setRemainingSolutionVariants(remaining);
+    } else {
+      restoredVariantsRef.current = remaining;
+      setSolutionRecipe(input);
+    }
+    setCursorItem(undefined);
+    setCraftingTables(finished ? tables : [...tables, empty()]);
+    setColorTables(finished ? colors : [...colors, emptyColors()]);
+    setGameState(saved.status);
   };
 
   // Dev/test hook: lets you force the puzzle's correct answer from the JS
@@ -412,6 +460,8 @@ const GlobalProvider = ({ children }: { children: ReactNode }) => {
       resetGame,
       gameDate,
       remainingSolutionVariants,
+      restoreGame,
+      dailyRestorerRef,
     }),
     [
       userId,

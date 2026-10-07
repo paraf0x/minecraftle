@@ -1,4 +1,5 @@
 import GlobalProvider from "@/context/Global";
+import { DiscordProvider } from "@/discord/DiscordProvider";
 import "@/styles/globals.css";
 import type { AppProps } from "next/app";
 import Head from "next/head";
@@ -47,7 +48,11 @@ function App({ Component, pageProps }: AppProps) {
       <Component {...pageProps} />
     </Layout>
   );
-  return <GlobalProvider>{layout}</GlobalProvider>;
+  return (
+    <GlobalProvider>
+      <DiscordProvider>{layout}</DiscordProvider>
+    </GlobalProvider>
+  );
 }
 
 export default trpc.withTRPC(App);

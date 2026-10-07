@@ -4,6 +4,8 @@ import Link from "next/link";
 import { Fragment, useState } from "react";
 import MCButton from "./MCButton.component";
 import CraftingTable from "@/components/CraftingTable.component";
+import DiscordFinishActions from "@/discord/DiscordFinish";
+import { utcDateKey } from "@/discord/daily";
 
 export default function Popup({
   isOpen,
@@ -29,7 +31,7 @@ export default function Popup({
   const [copyButtonText, setCopyButtonText] = useState("Copy");
   console.log("highContrast", highContrast);
   const generateSummary = () => {
-    let summaryString = `Minecraftle ${new Date(gameDate.getTime() - gameDate.getTimezoneOffset() * 1000 * 60).toISOString().slice(0, 10)} ${
+    let summaryString = `Minecraftle ${utcDateKey(gameDate)} ${
       craftingTables.length
     }/10\n`;
 
@@ -138,6 +140,7 @@ export default function Popup({
                         )}
                       </div>
                     </div>
+                    {!isRandom && <DiscordFinishActions />}
                   </div>
                 </Dialog.Panel>
               </Transition.Child>
