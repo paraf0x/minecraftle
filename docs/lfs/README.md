@@ -9,9 +9,7 @@ The game shows a "Source" link in every mode. Item textures belong to Mojang.
 
 ## Setup
 
-1. Discord developer portal, application of the Concierge: enable Activities,
-   map URL `/` to `minecraftle.paraf0x.win`, add OAuth2 redirect
-   `https://127.0.0.1`. Players authorise `identify` and `guilds.members.read`.
+1. Configure the Discord application (section "Discord setup" below).
 2. Copy `.env.example` to `.env` and fill it in (table below).
 3. Create the Docker network once if it does not exist: `docker network create lfs-net`.
 4. `docker compose -f docker-compose.lfs.yml up -d --build`
@@ -21,6 +19,22 @@ The app listens on `127.0.0.1:8095`. Point the Cloudflare Tunnel hostname
 Access, because Discord's proxy cannot log in. Migrations run on every start
 and the container waits for the database for up to 60 seconds. Data lives in
 `./data/postgres`.
+
+## Discord setup
+
+In the Developer Portal, in the application of the Concierge:
+
+1. Activities: enable them and map URL `/` to `minecraftle.paraf0x.win`.
+2. OAuth2: add at least one redirect URI, for example `https://127.0.0.1`. The
+   URI is never opened. Without any redirect URI, `authorize()` fails, nobody
+   can sign in, and the daily puzzle stays locked with the message "Discord
+   refused the login step".
+3. Players authorise the scopes `identify` and `guilds.members.read`.
+
+When sign-in fails, the server log shows a line `[discord-client] <stage>:
+<message>` with the failed stage (`config`, `ready`, `authorize`, `token`,
+`authenticate`, `today`, `save`) and Discord's error code. Failed token
+exchanges also log `[discord-token] <step> failed: status <n>, error <field>`.
 
 ## Variables
 
@@ -51,6 +65,17 @@ the game runs as before.
   as `Authorization: Bearer`. A cookie would need `SameSite=None; Secure;
   Partitioned`, which iOS and some Android WebViews still drop in iframes. A
   reload re-authorises silently (`prompt: none`).
+- In Discord the daily puzzle opens only for a Member whose saved state is
+  loaded. Until then the board shows "Connecting to Discord…". If the
+  connection fails, the board is locked and offers "Try again", which repeats
+  the whole flow. Players without the role see that the puzzle counts for
+  members only. Random mode is open in every case.
+- A move that cannot be saved locks the board and is retried with backoff
+  (2 s up to 30 s). A finished game shows the finish screen after the server
+  stored it as finished.
+- `POST /api/discord/log` takes `{ stage, message }` without login, cuts each
+  field to 200 characters, strips control characters, allows 20 requests per
+  minute per IP (429 above that) and answers 204.
 - The daily puzzle is chosen by UTC date (`seedrandom("YYYY-MM-DD")`).
   Puzzle number = days since 2024-01-18 (upstream's first migration) + 1.
 - Each processed guess is saved (`discord_game`, one row per player and
@@ -88,7 +113,7 @@ recipe match, so a member who edits requests can fake a result.
 
 `src/context/Global/{index,context}.tsx` (UTC puzzle, restore a saved game),
 `src/components/Popup.component.tsx` (finish buttons, UTC date in summary),
-`src/pages/_app.tsx` (provider), `src/pages/_document.tsx` (analytics off by
+`src/pages/_app.tsx` (provider), `src/pages/index.tsx` (daily gate, finish screen after save), `src/pages/_document.tsx` (analytics off by
 default), `src/server/trpc.ts`, `src/server/routers/_app.ts`,
 `src/pages/api/trpc/[trpc].ts`, `src/utils/trpc.ts` (session context),
 `next.config.js` (`frame-ancestors` instead of `X-Frame-Options`),

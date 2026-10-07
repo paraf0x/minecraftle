@@ -5,6 +5,8 @@ import LoadingSpinner from "@/components/LoadingSpinner.component";
 import MCButton from "@/components/MCButton.component";
 import Popup from "@/components/Popup.component";
 import { useGlobal } from "@/context/Global/context";
+import DiscordGate from "@/discord/DiscordGate";
+import { useDiscord } from "@/discord/DiscordProvider";
 import { trpc } from "@/utils/trpc";
 import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
@@ -14,6 +16,7 @@ export default function Home() {
   const { random } = router.query;
   const { craftingTables, gameState, userId, resetGame, recipes, gameDate, items } = useGlobal();
   const [popupVisible, setPopupVisible] = useState(false);
+  const { gate, saveLocked, finishConfirmed } = useDiscord();
 
   const submitGame = trpc.game.submitGame.useMutation();
 
@@ -33,8 +36,6 @@ export default function Home() {
   useEffect(() => {
     if (gameState === "inprogress") return;
 
-    setPopupVisible(true);
-
     if (localStorage.getItem("lastGameDate") !== gameDate.toDateString() && !random) {
       submitGame
         .mutateAsync({
@@ -48,6 +49,11 @@ export default function Home() {
     }
   }, [gameState]);
 
+  // In Discord a finished daily game counts once the server holds it.
+  useEffect(() => {
+    if (gameState !== "inprogress" && finishConfirmed) setPopupVisible(true);
+  }, [gameState, finishConfirmed]);
+
   return (
     <div className="flex max-w-lg flex-col items-center m-auto">
       <Cursor />
@@ -57,25 +63,41 @@ export default function Home() {
         </div>
       </div>
 
-      {Object.keys(recipes).length > 0 && Object.keys(items).length > 0 ? (
-        <div className="guesses" id="guesses">
-          {craftingTables.map((table, index) => (
-            <CraftingTable
-              key={index}
-              tableNum={index}
-              active={index === craftingTables.length - 1 && gameState === "inprogress"}
-            />
-          ))}
-        </div>
+      {gate !== "open" ? (
+        <DiscordGate />
       ) : (
-        <div className="box inv-background">
-          <LoadingSpinner />
-        </div>
-      )}
+        <>
+          {saveLocked && (
+            <p className="box inv-background p-2 text-center text-gray-900">
+              Could not save your move. The board is locked until it is saved. Trying again…
+            </p>
+          )}
+          {gameState !== "inprogress" && !finishConfirmed && !saveLocked && (
+            <p className="box inv-background p-2 text-center text-gray-900">Saving your result…</p>
+          )}
+          <div className={saveLocked ? "pointer-events-none opacity-60" : ""}>
+          {Object.keys(recipes).length > 0 && Object.keys(items).length > 0 ? (
+            <div className="guesses" id="guesses">
+              {craftingTables.map((table, index) => (
+                <CraftingTable
+                  key={index}
+                  tableNum={index}
+                  active={index === craftingTables.length - 1 && gameState === "inprogress"}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="box inv-background">
+              <LoadingSpinner />
+            </div>
+          )}
 
-      <Inventory guessCount={craftingTables.length} />
-      <div ref={divRef}></div>
-      {popupVisible && (
+          <Inventory guessCount={craftingTables.length} />
+          <div ref={divRef}></div>
+          </div>
+        </>
+      )}
+      {popupVisible && gate === "open" && (
         <Popup
           isRandom={!!random}
           isOpen={popupVisible}
@@ -84,7 +106,7 @@ export default function Home() {
           }}
         />
       )}
-      {gameState !== "inprogress" && <MCButton onClick={() => setPopupVisible(true)}>Show Summary</MCButton>}
+      {gate === "open" && gameState !== "inprogress" && finishConfirmed && <MCButton onClick={() => setPopupVisible(true)}>Show Summary</MCButton>}
     </div>
   );
 }
