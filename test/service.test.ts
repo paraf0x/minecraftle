@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { reportResult } from "../src/discord/concierge.ts";
 import { puzzleNumber } from "../src/discord/daily.ts";
-import { ServiceError, getToday, saveGuesses, shareGrid } from "../src/discord/service.ts";
+import { ServiceError, getToday, saveGuesses } from "../src/discord/service.ts";
 import type { ServiceDeps } from "../src/discord/service.ts";
 import { MemoryStore, winningGuess, wrongGuess } from "./helpers.ts";
 
@@ -199,29 +199,4 @@ test("without Concierge settings a finished game is stored and nothing is sent",
   await report;
   assert.equal(game.status, "won");
   assert.equal(calls.length, 0);
-});
-
-test("share needs a finished game and posts discordId and puzzleNumber", async () => {
-  const { deps, calls, fetchFn } = setup();
-  await saveGuesses(deps, "42", N, wrong(1));
-  await rejects(shareGrid(deps, "42", N, fetchFn), "NOT_FINISHED");
-  await rejects(shareGrid(deps, "99", N, fetchFn), "NOT_FINISHED");
-  const { report } = await saveGuesses(deps, "42", N, [...wrong(1), winningGuess()]);
-  await report;
-  calls.length = 0;
-  await shareGrid(deps, "42", N, fetchFn);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].url, "http://concierge:3000/internal/minecraftle/share");
-  assert.equal(calls[0].token, "tok");
-  assert.deepEqual(calls[0].body, { discordId: "42", puzzleNumber: N });
-  await rejects(shareGrid(deps, "42", N, fetchFn), "COOLDOWN");
-});
-
-test("share failure surfaces as UNAVAILABLE and can be retried", async () => {
-  const { deps, fetchFn } = setup();
-  const { report } = await saveGuesses(deps, "7", N, [winningGuess()]);
-  await report;
-  const failing = (async () => new Response("{}", { status: 500 })) as typeof fetch;
-  await rejects(shareGrid(deps, "7", N, failing), "UNAVAILABLE");
-  await shareGrid(deps, "7", N, fetchFn);
 });

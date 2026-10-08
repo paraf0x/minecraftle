@@ -85,8 +85,9 @@ the game runs as before.
   `/internal/minecraftle/result` with `X-Internal-Token`. Only the request that
   ends the game sends it. Network errors, 429 and 5xx are retried 3 times (1 s,
   3 s, 9 s), then logged; the game stays stored with `reported_at` empty.
-- "Share my grid" posts `/internal/minecraftle/share` with `discordId` and
-  `puzzleNumber`, at most once per 15 seconds per game.
+- The Concierge posts the grid to `#gamle` when it receives the result. The
+  activity has no share request; `/internal/minecraftle/share` stays on the
+  Concierge for older clients.
 
 Grid values sent to the Concierge, per guess nine fields row by row:
 

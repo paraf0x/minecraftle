@@ -2,7 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getConciergeConfig } from "@/discord/config";
 import { prismaStore } from "@/discord/prismaStore";
-import { ServiceError, getToday, saveGuesses, shareGrid } from "@/discord/service";
+import { ServiceError, getToday, saveGuesses } from "@/discord/service";
 import type { ServiceDeps, ServiceErrorCode } from "@/discord/service";
 import { createRouter, publicProcedure } from "../trpc";
 
@@ -14,7 +14,6 @@ const codes: Record<ServiceErrorCode, TRPCError["code"]> = {
   ALREADY_FINISHED: "CONFLICT",
   CONFLICT: "CONFLICT",
   NOT_FINISHED: "PRECONDITION_FAILED",
-  COOLDOWN: "TOO_MANY_REQUESTS",
   UNAVAILABLE: "BAD_GATEWAY",
 };
 
@@ -45,11 +44,4 @@ export const discordRouter = createRouter({
         return game;
       }),
     ),
-
-  share: memberProcedure
-    .input(z.object({ puzzleNumber: z.number().int() }))
-    .mutation(({ ctx, input }) => run(async () => {
-      await shareGrid(deps(), ctx.discordId, input.puzzleNumber);
-      return { ok: true };
-    })),
 });

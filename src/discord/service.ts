@@ -1,11 +1,10 @@
 // Game rules for Discord players: one daily game each, resumable, reported once.
 import type { ConciergeConfig } from "./config.ts";
-import { reportResult, requestShare } from "./concierge.ts";
+import { reportResult } from "./concierge.ts";
 import type { ConciergeDeps } from "./concierge.ts";
 import { puzzleNumber, utcDateKey } from "./daily.ts";
 import { deriveStatus, guessesSchema, hasGuessAfterWin, toReportGrid } from "./grid.ts";
 import type { GameStatus, Guess } from "./grid.ts";
-import type { FetchFn } from "./member.ts";
 import type { GameRecord, GameStore } from "./store.ts";
 
 export type ServiceErrorCode =
@@ -14,7 +13,6 @@ export type ServiceErrorCode =
   | "ALREADY_FINISHED"
   | "CONFLICT"
   | "NOT_FINISHED"
-  | "COOLDOWN"
   | "UNAVAILABLE";
 
 export class ServiceError extends Error {
@@ -116,29 +114,4 @@ function startReport(
   ).then(async (ok) => {
     if (ok) await deps.store.markReported(discordId, number);
   });
-}
-
-const SHARE_COOLDOWN_MS = 15_000;
-const lastShare = new Map<string, number>();
-
-/** Asks the Concierge to post the player's grid. Needs a finished game. */
-export async function shareGrid(deps: ServiceDeps, discordId: string, number: number, fetchFn?: FetchFn): Promise<void> {
-  const game = await deps.store.find(discordId, number);
-  if (!game || game.status === "inprogress") throw new ServiceError("NOT_FINISHED", "Finish the puzzle first");
-  if (!deps.concierge) throw new ServiceError("UNAVAILABLE", "Sharing is not configured");
-
-  const key = `${discordId}:${number}`;
-  const nowMs = (deps.now ?? (() => new Date()))().getTime();
-  const last = lastShare.get(key);
-  if (last !== undefined && nowMs - last < SHARE_COOLDOWN_MS) {
-    throw new ServiceError("COOLDOWN", "Grid was shared a moment ago");
-  }
-  lastShare.set(key, nowMs);
-  try {
-    await requestShare(deps.concierge, discordId, number, fetchFn);
-  } catch (err) {
-    lastShare.delete(key);
-    console.error(`minecraftle: share failed for puzzle ${number}: ${err instanceof Error ? err.message : "error"}`);
-    throw new ServiceError("UNAVAILABLE", "Could not share the grid");
-  }
 }

@@ -39,7 +39,7 @@ sees each other's results.
 
    One line per player in order of finishing, tries and a compact colour row
    of the last guess. A player's own full grid of guesses is shown to them in
-   the activity and can be posted on request with a "Share my grid" button.
+   the activity. The Concierge posts it to `#gamle` when the result arrives.
    Below the list, the current streaks of everyone with a streak of 3 or more.
 4. Each player can play the daily puzzle once. Reloading the activity resumes
    the game in progress.
@@ -77,7 +77,7 @@ item textures are Mojang's, as in the original.
   - A new tRPC route that records a finished daily game for the signed-in
     player and returns the day's results.
   - Daily puzzle seeded by UTC date.
-  - "Share my grid" and "Source" in the finish screen.
+  - A note that the result is posted in `#gamle`, and "Source", in the finish screen.
 - In `~/lfs-concierge`: `/lfs minecraftle` answered with a launch-activity response,
   the "Play" message in `#gamle`, and the day's results message. The game
   server tells the Concierge about a finished game over a local HTTP call
