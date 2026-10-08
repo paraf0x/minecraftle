@@ -1,6 +1,6 @@
 // Runs the Discord Embedded App SDK when the page is loaded inside Discord,
 // keeps the daily game of a Member in sync with the server, and offers
-// "Source". Outside Discord it renders its children only.
+// "Share my grid" and "Source". Outside Discord it renders its children only.
 import { useGlobal } from "@/context/Global/context";
 import { trpc } from "@/utils/trpc";
 import { useRouter } from "next/router";
@@ -14,9 +14,13 @@ import type { TodayView } from "./service";
 
 export const SOURCE_URL = "https://github.com/paraf0x/minecraftle";
 
+type ShareState = "idle" | "sending" | "sent" | "error";
+
 type DiscordValue = {
   mode: Mode;
   today: TodayView | null;
+  shareState: ShareState;
+  share: () => void;
   openSource: () => void;
   // Gate for the daily puzzle: anything but "open" replaces the board.
   gate: DailyGate;
@@ -32,6 +36,8 @@ type DiscordValue = {
 const DiscordContext = createContext<DiscordValue>({
   mode: "off",
   today: null,
+  shareState: "idle",
+  share: () => {},
   openSource: () => {},
   gate: "open",
   failureStage: null,
@@ -58,6 +64,7 @@ export function DiscordProvider({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<Mode>("off");
   const [notice, setNotice] = useState<string | null>(null);
   const [today, setToday] = useState<TodayView | null>(null);
+  const [shareState, setShareState] = useState<ShareState>("idle");
   const [failureStage, setFailureStage] = useState<Stage | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [saveFailures, setSaveFailures] = useState(0);
@@ -256,6 +263,16 @@ export function DiscordProvider({ children }: { children: ReactNode }) {
   }, [mode, today, recipesReady, router.isReady, isRandom, solution, craftingTables, colorTables, retryTick]);
 
   // 6. Finish screen actions.
+  const shareMutation = trpc.discord.share.useMutation();
+  const share = useCallback(() => {
+    if (!today || shareState === "sending") return;
+    setShareState("sending");
+    shareMutation
+      .mutateAsync({ puzzleNumber: today.puzzleNumber })
+      .then(() => setShareState("sent"))
+      .catch((err) => setShareState(errorCode(err) === "TOO_MANY_REQUESTS" ? "sent" : "error"));
+  }, [today, shareState]);
+
   const openSource = useCallback(() => {
     if (sdkRef.current) sdkRef.current.commands.openExternalLink({ url: SOURCE_URL }).catch(() => {});
     else window.open(SOURCE_URL, "_blank", "noopener");
@@ -266,8 +283,8 @@ export function DiscordProvider({ children }: { children: ReactNode }) {
   const finishConfirmed = isRandom || mode === "off" || (!!today?.game && today.game.status !== "inprogress");
 
   const value = useMemo(
-    () => ({ mode, today, openSource, gate, failureStage, retry, saveLocked, finishConfirmed }),
-    [mode, today, openSource, gate, failureStage, retry, saveLocked, finishConfirmed],
+    () => ({ mode, today, shareState, share, openSource, gate, failureStage, retry, saveLocked, finishConfirmed }),
+    [mode, today, shareState, share, openSource, gate, failureStage, retry, saveLocked, finishConfirmed],
   );
 
   return (

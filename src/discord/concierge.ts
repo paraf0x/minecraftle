@@ -69,3 +69,9 @@ export async function reportResult(cfg: ConciergeConfig, payload: ResultPayload,
   }
   return false;
 }
+
+/** Asks the Concierge to post the player's grid. Throws on failure. */
+export async function requestShare(cfg: ConciergeConfig, discordId: string, puzzleNumber: number, fetchFn: FetchFn = fetch): Promise<void> {
+  const res = await post(cfg, "share", { discordId, puzzleNumber }, fetchFn);
+  if (!res.ok) throw new Error(`share failed: HTTP ${res.status}`);
+}
